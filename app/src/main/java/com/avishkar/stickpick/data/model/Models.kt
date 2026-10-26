@@ -45,9 +45,11 @@ data class StickerPack(
     val publisherWebsite: String = "",
     val privacyPolicyWebsite: String = "",
     val licenseAgreementWebsite: String = "",
-    val imageDataVersion: String = "1",
+    val imageDataVersion: String = "2",
     val avoidCache: Boolean = false,
-    val animatedStickerPack: Boolean = false
+    val animatedStickerPack: Boolean = false,
+    val androidPlayStoreLink: String = "https://play.google.com/store/apps/details?id=com.avishkar.stickpick",
+    val iosAppStoreLink: String = ""
 )
 
 data class Sticker(

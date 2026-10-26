@@ -293,16 +293,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repo.storage.savePack(pack)
     }
 
-    fun loadSavedPacks() { _savedPacks.value = repo.storage.loadPacks() }
-    fun deletePack(id: String) { repo.storage.deletePack(id); loadSavedPacks() }
-
-    fun updatePackName(id: String, newName: String) {
-        val packs = repo.storage.loadPacks().toMutableList()
-        val idx = packs.indexOfFirst { it.identifier == id }
-        if (idx >= 0) { packs[idx] = packs[idx].copy(name = newName); repo.storage.savePacks(packs); loadSavedPacks() }
+    fun loadSavedPacks() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val packs = repo.storage.loadPacks()
+            _savedPacks.value = packs
+        }
+    }
+    fun deletePack(id: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            repo.storage.deletePack(id)
+            val packs = repo.storage.loadPacks()
+            _savedPacks.value = packs
+        }
     }
 
-    fun clearHistory() { repo.storage.clearAll(); loadSavedPacks() }
+    fun updatePackName(id: String, newName: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val packs = repo.storage.loadPacks().toMutableList()
+            val idx = packs.indexOfFirst { it.identifier == id }
+            if (idx >= 0) {
+                packs[idx] = packs[idx].copy(name = newName)
+                repo.storage.savePacks(packs)
+                _savedPacks.value = packs
+            }
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            repo.storage.clearAll()
+            _savedPacks.value = emptyList()
+        }
+    }
     fun clearError() { _error.value = null }
     fun updatePackLimit(limit: Int) { viewModelScope.launch { repo.prefs.savePackLimit(limit) } }
     fun updateThemeMode(mode: String) { viewModelScope.launch { repo.prefs.saveThemeMode(mode) } }

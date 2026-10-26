@@ -1,9 +1,6 @@
 package com.avishkar.stickpick.ui.screens
 
 import android.app.Activity
-import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
-import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,7 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -37,18 +33,13 @@ import coil.request.ImageRequest
 import com.avishkar.stickpick.R
 import com.avishkar.stickpick.data.local.PackStorage
 import com.avishkar.stickpick.data.model.StickerPack
+import com.avishkar.stickpick.ui.components.VideoThumbnail
 import com.avishkar.stickpick.ui.navigation.Routes
 import com.avishkar.stickpick.viewmodel.MainViewModel
+import com.avishkar.stickpick.whatsapp.PackArchiveHelper
 import com.avishkar.stickpick.whatsapp.WhatsAppIntentHelper
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.io.File
-
-private val packThumbCache = object : LruCache<String, Bitmap>(
-    (Runtime.getRuntime().maxMemory() / 1024 / 16).toInt()
-) {
-    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -177,6 +168,7 @@ private fun PackCard(
     onAddToBusiness: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showEditDialog by remember { mutableStateOf(false) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var editName by remember(pack.name) { mutableStateOf(pack.name) }
@@ -236,6 +228,10 @@ private fun PackCard(
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Tap to view stickers", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                }
+                IconButton(onClick = { scope.launch { PackArchiveHelper.sharePack(context, pack, packStorage) } }) {
+                    Icon(Icons.Outlined.Share, contentDescription = "Share",
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                 }
                 IconButton(onClick = { showEditDialog = true }) {
                     Icon(Icons.Outlined.Edit, contentDescription = "Edit",
@@ -312,11 +308,17 @@ private fun PackCard(
 @Composable
 private fun PackDetailDialog(pack: StickerPack, packStorage: PackStorage, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val baseId = remember(pack.identifier) {
-        val last = pack.identifier.lastIndexOf('_')
-        if (last > 0) pack.identifier.substring(0, last) else pack.identifier
+    val scope = rememberCoroutineScope()
+    val convertedDir = remember(pack.identifier) {
+        val exactDir = packStorage.getConvertedDir(pack.identifier)
+        if (exactDir.exists() && exactDir.listFiles()?.isNotEmpty() == true) {
+            exactDir
+        } else {
+            val last = pack.identifier.lastIndexOf('_')
+            val baseId = if (last > 0) pack.identifier.substring(0, last) else pack.identifier
+            packStorage.getConvertedDir(baseId)
+        }
     }
-    val convertedDir = remember(baseId) { packStorage.getConvertedDir(baseId) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -334,6 +336,9 @@ private fun PackDetailDialog(pack: StickerPack, packStorage: PackStorage, onDism
                         Text(pack.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("${pack.stickers.size} stickers", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { scope.launch { PackArchiveHelper.sharePack(context, pack, packStorage) } }) {
+                        Icon(Icons.Outlined.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.primary)
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close") }
                 }
@@ -365,7 +370,7 @@ private fun PackDetailDialog(pack: StickerPack, packStorage: PackStorage, onDism
                                         )
                                     }
                                     rawFile != null && rawFile.exists() && rawFile.extension == "webm" -> {
-                                        CachedThumb(rawFile, Modifier.fillMaxSize())
+                                        VideoThumbnail(rawFile, Modifier.fillMaxSize())
                                     }
                                     else -> {
                                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -394,27 +399,4 @@ private fun PackDetailDialog(pack: StickerPack, packStorage: PackStorage, onDism
     }
 }
 
-@Composable
-private fun CachedThumb(file: File, modifier: Modifier = Modifier) {
-    val path = file.absolutePath
-    var bitmap by remember(path) { mutableStateOf(packThumbCache.get(path)) }
-    if (bitmap == null) {
-        LaunchedEffect(path) {
-            val bmp = withContext(Dispatchers.IO) {
-                try {
-                    val r = MediaMetadataRetriever(); r.setDataSource(path)
-                    val frame = r.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    r.release(); frame
-                } catch (e: Exception) { null }
-            }
-            if (bmp != null) { packThumbCache.put(path, bmp); bitmap = bmp }
-        }
-    }
-    if (bitmap != null) {
-        Image(bitmap = bitmap!!.asImageBitmap(), contentDescription = null, modifier = modifier, contentScale = ContentScale.Fit)
-    } else {
-        Box(modifier, contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
-        }
-    }
-}
+

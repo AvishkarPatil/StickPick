@@ -99,9 +99,12 @@ class ConversionEngine(context: Context) {
     private fun convertVideoFrameToStatic(input: File, output: File): Boolean {
         return try {
             val retriever = MediaMetadataRetriever()
-            retriever.setDataSource(input.absolutePath)
-            val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            retriever.release()
+            val frame = try {
+                retriever.setDataSource(input.absolutePath)
+                retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            } finally {
+                try { retriever.release() } catch (_: Exception) {}
+            }
             if (frame == null) return false
 
             val scaled = scaleTo512Transparent(frame)
@@ -195,9 +198,12 @@ class ConversionEngine(context: Context) {
             val bitmap = when (inputFile.extension.lowercase()) {
                 "webm", "mp4" -> {
                     val r = MediaMetadataRetriever()
-                    r.setDataSource(inputFile.absolutePath)
-                    val f = r.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    r.release(); f
+                    try {
+                        r.setDataSource(inputFile.absolutePath)
+                        r.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    } finally {
+                        try { r.release() } catch (_: Exception) {}
+                    }
                 }
                 else -> BitmapFactory.decodeFile(inputFile.absolutePath)
             } ?: throw Exception("Cannot decode tray source")

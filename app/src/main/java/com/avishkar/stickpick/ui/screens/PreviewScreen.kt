@@ -1,9 +1,6 @@
 package com.avishkar.stickpick.ui.screens
 
-import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.util.LruCache
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -19,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -27,17 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.avishkar.stickpick.ui.components.VideoThumbnail
 import com.avishkar.stickpick.viewmodel.MainViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-
-private val thumbnailCache = object : LruCache<String, Bitmap>(
-    (Runtime.getRuntime().maxMemory() / 1024 / 8).toInt()
-) {
-    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,7 +131,7 @@ private fun StickerCard(file: File, index: Int, onDelete: () -> Unit) {
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (isVideo) {
-                CachedVideoThumbnail(file = file, modifier = Modifier.fillMaxSize().padding(10.dp))
+                VideoThumbnail(file = file, modifier = Modifier.fillMaxSize().padding(10.dp), indicatorSize = 18.dp)
             } else {
                 val context = LocalContext.current
                 AsyncImage(
@@ -180,35 +169,6 @@ private fun StickerCard(file: File, index: Int, onDelete: () -> Unit) {
                 color = MaterialTheme.colorScheme.outline,
                 fontWeight = FontWeight.Bold, fontSize = 9.sp, letterSpacing = 0.5.sp
             )
-        }
-    }
-}
-
-@Composable
-private fun CachedVideoThumbnail(file: File, modifier: Modifier = Modifier) {
-    val path = file.absolutePath
-    var bitmap by remember(path) { mutableStateOf(thumbnailCache.get(path)) }
-
-    if (bitmap == null) {
-        LaunchedEffect(path) {
-            val bmp = withContext(Dispatchers.IO) {
-                try {
-                    val r = MediaMetadataRetriever()
-                    r.setDataSource(path)
-                    val frame = r.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    r.release(); frame
-                } catch (e: Exception) { null }
-            }
-            if (bmp != null) { thumbnailCache.put(path, bmp); bitmap = bmp }
-        }
-    }
-
-    if (bitmap != null) {
-        Image(bitmap = bitmap!!.asImageBitmap(), contentDescription = null,
-            modifier = modifier, contentScale = ContentScale.Fit)
-    } else {
-        Box(modifier, contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

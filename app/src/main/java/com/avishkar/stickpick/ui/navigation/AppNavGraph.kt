@@ -57,7 +57,7 @@ fun AppNavGraph(navController: NavHostController, vm: MainViewModel = viewModel(
 
     if (!isReady) return
 
-    val startDest = if (onboardingDone) Routes.HOME else Routes.ONBOARDING
+    val startDest = Routes.MY_PACKS
 
     val tabNavigate: (String) -> Unit = { route ->
         if (route == Routes.HOME) vm.resetWorkflow()
